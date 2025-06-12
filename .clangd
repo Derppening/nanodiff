@@ -1,0 +1,15 @@
+Diagnostics:
+    ClangTidy:
+        Add: '*'
+        Remove:
+            - abseil-*
+            - android-*
+            - boost-*
+            - cert-*
+            - fuchsia-*
+            - llvm-*
+            - llvmlibc-*
+            - mpi-*
+            - objc-*
+            - openmp-*
+            - zircon-*'
