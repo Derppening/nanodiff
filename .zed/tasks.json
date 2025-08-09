@@ -21,7 +21,12 @@
   },
   {
     "label": "CMake - Build Debug",
-    "command": "cmake --build build",
+    "command": "cmake --build build --target nanodiff",
+    "show_command": false
+  },
+  {
+    "label": "CMake - Test",
+    "command": "ctest --build-and-test . build --build-generator Ninja --build-target nanodiff-test --build-options -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=g++ -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_LINKER_TYPE=MOLD --test-command ctest --test-dir .",
     "show_command": false
   },
   {

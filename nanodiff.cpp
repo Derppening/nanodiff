@@ -156,6 +156,8 @@ auto diff_file_stdout(std::ifstream expected, std::ifstream actual) -> bool {
 }
 }  // namespace
 
+#ifndef NANODIFF_TEST
+
 auto main(int argc, char** argv) -> int {
   std::vector<std::string> args{argv, argv + argc};
 
@@ -198,3 +200,5 @@ auto main(int argc, char** argv) -> int {
     return EXIT_FAILURE;
   }
 }
+
+#endif  // NANODIFF_TEST

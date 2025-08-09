@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.15)
 
 project(nanodiff VERSION 0.1.0 LANGUAGES CXX)
 
+include(CTest)
+
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -18,4 +20,8 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
         -fsanitize=address,undefined)
     target_link_options(${PROJECT_NAME} PRIVATE
         -fsanitize=address,undefined)
+endif ()
+
+if (BUILD_TESTING)
+    add_subdirectory(test)
 endif ()
