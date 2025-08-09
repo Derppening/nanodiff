@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+namespace {
 struct command_line_args {
   std::optional<std::string> expected{std::nullopt};
   std::optional<std::string> actual{std::nullopt};
@@ -51,6 +52,7 @@ std::expected<command_line_args, std::string> parse_cmdline(const std::vector<st
 
   return cmd_args;
 }
+}  // namespace
 
 auto main(int argc, char** argv) -> int {
   std::vector<std::string> args{argv, argv + argc};
