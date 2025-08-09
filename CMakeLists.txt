@@ -12,3 +12,10 @@ target_compile_options(${PROJECT_NAME} PRIVATE
     -Wextra
     -Werror=pedantic
     -pedantic-errors)
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        -fno-omit-frame-pointer
+        -fsanitize=address,undefined)
+    target_link_options(${PROJECT_NAME} PRIVATE
+        -fsanitize=address,undefined)
+endif ()
