@@ -14,10 +14,19 @@ struct command_line_args {
   std::optional<std::string> actual{std::nullopt};
 };
 
-// Function Prototypes
-std::expected<command_line_args, std::string> parse_cmdline(const std::vector<std::string>& args);
+using arg_parse_result = std::expected<command_line_args, std::string>;
 
-std::expected<command_line_args, std::string> parse_cmdline(const std::vector<std::string>& args) {
+/**
+ * @brief Parses the command line arguments and returns a structure containing the parsed options.
+ */
+auto parse_cmdline(const std::vector<std::string>& args) -> arg_parse_result;
+
+/**
+ * @brief Validates the parsed command line arguments.
+ */
+auto validate_args(const command_line_args& args) -> arg_parse_result;
+
+auto parse_cmdline(const std::vector<std::string>& args) -> arg_parse_result {
   command_line_args cmd_args{};
 
   bool parse_options = true;
@@ -42,15 +51,18 @@ std::expected<command_line_args, std::string> parse_cmdline(const std::vector<st
     }
   }
 
-  // validate options
-  if (!cmd_args.expected) {
-    return std::unexpected{"Missing expected file"};
+  return validate_args(cmd_args);
+}
+
+auto validate_args(const command_line_args& args) -> arg_parse_result {
+  if (!args.expected) {
+    return std::unexpected{"Missing argument for path to expected output"};
   }
-  if (!cmd_args.actual) {
-    return std::unexpected{"Missing actual file"};
+  if (!args.actual) {
+    return std::unexpected{"Missing argument for path to actual output"};
   }
 
-  return cmd_args;
+  return args;
 }
 }  // namespace
 
@@ -60,7 +72,7 @@ auto main(int argc, char** argv) -> int {
   auto cmd_args_or_err = parse_cmdline(args);
   if (!cmd_args_or_err) {
     auto err = cmd_args_or_err.error();
-    std::print("Error: {}\n", err);
+    std::print("Error while parsing command-line arguments: {}\n", err);
     return 1;
   }
 
