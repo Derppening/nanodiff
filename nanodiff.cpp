@@ -1,3 +1,5 @@
+#include <cassert>
+#include <cstdint>
 #include <cstdlib>
 
 #include <expected>
@@ -13,6 +15,21 @@ struct command_line_args {
   std::optional<std::string> expected{std::nullopt};
   std::optional<std::string> actual{std::nullopt};
   // TODO(Derppening): Add option for hiding expected/actual file paths
+  // TODO(Derppening): Add option for hiding context lines
+  // TODO(Derppening): Add option for custom exit code
+  // TODO(Derppening): Add diff options supported by ZINC
+  // TODO(Derppening): Add option for treating missing file as empty
+};
+
+enum struct diff_line_type : std::uint8_t {
+  context,
+  expected_only,
+  actual_only,
+};
+
+struct diff_line {
+  std::string line;
+  diff_line_type type;
 };
 
 using arg_parse_result = std::expected<command_line_args, std::string>;
@@ -84,6 +101,59 @@ auto normalize_path(const std::string& path_str) -> std::expected<std::filesyste
 
   return std::filesystem::canonical(path);
 }
+
+// TODO(Derppening): Refactor this into accepting function pointers on different cases
+auto diff_file_stdout(std::ifstream expected, std::ifstream actual) -> bool {
+  bool has_diff{};
+  std::vector<std::string> expected_absent{};
+  std::vector<std::string> actual_absent{};
+
+  auto output_diff = [&expected_absent, &actual_absent]() {
+    for (const auto& l : actual_absent) {
+      std::print("-{}\n", l);
+    }
+    actual_absent.clear();
+
+    for (const auto& l : expected_absent) {
+      std::print("+{}\n", l);
+    }
+    expected_absent.clear();
+  };
+
+  while (expected || actual) {
+    std::optional<std::string> expected_line{};
+    std::optional<std::string> actual_line{};
+
+    if (expected) {
+      expected_line = std::make_optional<std::string>();
+      std::getline(expected, *expected_line);
+    }
+    if (actual) {
+      actual_line = std::make_optional<std::string>();
+      std::getline(expected, *actual_line);
+    }
+
+    if (expected_line && actual_line) {
+      if (*expected_line == *actual_line) {
+        output_diff();
+        std::print(" {}\n", *expected_line);
+      } else {
+        actual_absent.emplace_back(*expected_line);
+        expected_absent.emplace_back(*actual_line);
+      }
+    } else if (expected_line) {
+      actual_absent.emplace_back(*expected_line);
+    } else if (actual_line) {
+      expected_absent.emplace_back(*actual_line);
+    } else {
+      assert(false);
+    }
+  }
+
+  output_diff();
+
+  return has_diff;
+}
 }  // namespace
 
 auto main(int argc, char** argv) -> int {
@@ -97,9 +167,6 @@ auto main(int argc, char** argv) -> int {
   }
 
   const auto& cmd_args = *cmd_args_or_err;
-
-  std::vector<std::string> expected_absent{};
-  std::vector<std::string> actual_absent{};
 
   const auto expected_path_or_err = normalize_path(*cmd_args.expected);
   if (!expected_path_or_err) {
@@ -122,6 +189,12 @@ auto main(int argc, char** argv) -> int {
   }
   if (!actual) {
     std::print(stderr, "Unable to open file '{}'\n", actual_path.string());
+    return EXIT_FAILURE;
+  }
+
+  bool has_diff = diff_file_stdout(std::move(expected), std::move(actual));
+
+  if (has_diff) {
     return EXIT_FAILURE;
   }
 }
