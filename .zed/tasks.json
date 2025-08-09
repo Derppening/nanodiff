@@ -1,0 +1,32 @@
+// Project tasks configuration. See https://zed.dev/docs/tasks for documentation.
+//
+// Example:
+[
+  {
+    "label": "Makefile - Build Debug",
+    "command": "make debug"
+  },
+  {
+    "label": "Makefile - Build Release",
+    "command": "make default"
+  },
+  {
+    "label": "Makefile - Clean",
+    "command": "clean"
+  },
+  {
+    "label": "CMake - Generate Debug",
+    "command": "cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=g++ -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_LINKER_TYPE=MOLD -G Ninja .",
+    "show_command": false
+  },
+  {
+    "label": "CMake - Build Debug",
+    "command": "cmake --build build",
+    "show_command": false
+  },
+  {
+    "label": "CMake - Clean",
+    "command": "cmake --build build -- clean",
+    "show_command": false
+  }
+]
