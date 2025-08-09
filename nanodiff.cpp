@@ -12,6 +12,7 @@ namespace {
 struct command_line_args {
   std::optional<std::string> expected{std::nullopt};
   std::optional<std::string> actual{std::nullopt};
+  // TODO(Derppening): Add option for hiding expected/actual file paths
 };
 
 using arg_parse_result = std::expected<command_line_args, std::string>;
@@ -25,6 +26,11 @@ auto parse_cmdline(const std::vector<std::string>& args) -> arg_parse_result;
  * @brief Validates the parsed command line arguments.
  */
 auto validate_args(const command_line_args& args) -> arg_parse_result;
+
+/**
+ * @brief Validates that the given path exists, and converts it into a canonical, absolute path.
+ */
+auto normalize_path(const std::string& path_str) -> std::expected<std::filesystem::path, std::string>;
 
 auto parse_cmdline(const std::vector<std::string>& args) -> arg_parse_result {
   command_line_args cmd_args{};
@@ -64,6 +70,20 @@ auto validate_args(const command_line_args& args) -> arg_parse_result {
 
   return args;
 }
+
+auto normalize_path(const std::string& path_str) -> std::expected<std::filesystem::path, std::string> {
+  std::filesystem::path path{path_str};
+
+  if (!std::filesystem::exists(path)) {
+    return std::unexpected{std::format("'{}': File not found", path_str)};
+  }
+
+  if (!std::filesystem::is_regular_file(path)) {
+    return std::unexpected{std::format("'{}': Not a file", path_str)};
+  }
+
+  return std::filesystem::canonical(path);
+}
 }  // namespace
 
 auto main(int argc, char** argv) -> int {
@@ -76,23 +96,32 @@ auto main(int argc, char** argv) -> int {
     return 1;
   }
 
-  auto cmd_args = *cmd_args_or_err;
+  const auto& cmd_args = *cmd_args_or_err;
 
   std::vector<std::string> expected_absent{};
   std::vector<std::string> actual_absent{};
 
-  std::filesystem::path expected_file{*cmd_args.expected};
-  std::filesystem::path actual_file{*cmd_args.actual};
+  const auto expected_path_or_err = normalize_path(*cmd_args.expected);
+  if (!expected_path_or_err) {
+    std::print(stderr, "{}\n", expected_path_or_err.error());
+  }
+  const auto actual_path_or_err = normalize_path(*cmd_args.actual);
+  if (!actual_path_or_err) {
+    std::print(stderr, "{}\n", actual_path_or_err.error());
+  }
 
-  std::ifstream expected{expected_file};
-  std::ifstream actual{actual_file};
+  const auto& expected_path = *expected_path_or_err;
+  const auto& actual_path = *actual_path_or_err;
+
+  std::ifstream expected{*expected_path_or_err};
+  std::ifstream actual{*actual_path_or_err};
 
   if (!expected) {
-    std::print(stderr, "Unable to open file '{}'", expected_file.string());
+    std::print(stderr, "Unable to open file '{}'\n", expected_path.string());
     return EXIT_FAILURE;
   }
   if (!actual) {
-    std::print(stderr, "Unable to open file '{}'", actual_file.string());
+    std::print(stderr, "Unable to open file '{}'\n", actual_path.string());
     return EXIT_FAILURE;
   }
 }
