@@ -170,4 +170,100 @@ TEST(LazyDiffTest, SameOutput) {
   EXPECT_TRUE(diffs.empty()
               || std::ranges::all_of(diffs, [](const auto& line) { return line.type == diff_line_type::context; }));
 }
+
+TEST(LazyDiffTest, OneLineChanged) {
+  const auto expected_path = test_res_dir / "testcase_one_line_changed-expected.txt";
+  const auto actual_path = test_res_dir / "testcase_one_line_changed-actual.txt";
+
+  std::ifstream expected_file{expected_path};
+  ASSERT_TRUE(expected_file) << "Failed to open file: " << expected_path;
+  std::ifstream actual_file{actual_path};
+  ASSERT_TRUE(actual_file) << "Failed to open file: " << actual_path;
+
+  std::vector<diff_line> diffs{};
+  const auto has_diff = diff_file_stdout(std::move(expected_file), std::move(actual_file),
+                                         [&diffs](const diff_line& line) { diffs.push_back(line); });
+  EXPECT_TRUE(has_diff);
+
+  const auto line_count{count_lines(diffs)};
+  EXPECT_EQ(3, line_count.context);
+  EXPECT_EQ(1, line_count.expected_only);
+  EXPECT_EQ(1, line_count.actual_only);
+}
+
+TEST(LazyDiffTest, LineAdded) {
+  const auto expected_path = test_res_dir / "testcase_line_added-expected.txt";
+  const auto actual_path = test_res_dir / "testcase_line_added-actual.txt";
+
+  std::ifstream expected_file{expected_path};
+  ASSERT_TRUE(expected_file) << "Failed to open file: " << expected_path;
+  std::ifstream actual_file{actual_path};
+  ASSERT_TRUE(actual_file) << "Failed to open file: " << actual_path;
+
+  std::vector<diff_line> diffs{};
+  const auto has_diff = diff_file_stdout(std::move(expected_file), std::move(actual_file),
+                                         [&diffs](const diff_line& line) { diffs.push_back(line); });
+  EXPECT_TRUE(has_diff);
+  EXPECT_TRUE(std::ranges::any_of(diffs, [](const auto& line) { return line.type != diff_line_type::context; }));
+}
+
+TEST(LazyDiffTest, LineRemoved) {
+  const auto expected_path = test_res_dir / "testcase_line_removed-expected.txt";
+  const auto actual_path = test_res_dir / "testcase_line_removed-actual.txt";
+
+  std::ifstream expected_file{expected_path};
+  ASSERT_TRUE(expected_file) << "Failed to open file: " << expected_path;
+  std::ifstream actual_file{actual_path};
+  ASSERT_TRUE(actual_file) << "Failed to open file: " << actual_path;
+
+  std::vector<diff_line> diffs{};
+  const auto has_diff = diff_file_stdout(std::move(expected_file), std::move(actual_file),
+                                         [&diffs](const diff_line& line) { diffs.push_back(line); });
+  EXPECT_TRUE(has_diff);
+
+  const auto line_count{count_lines(diffs)};
+  EXPECT_EQ(4, line_count.context);
+  EXPECT_EQ(1, line_count.expected_only);
+  EXPECT_EQ(0, line_count.actual_only);
+}
+
+TEST(LazyDiffTest, CompletelyDifferent) {
+  const auto expected_path = test_res_dir / "testcase_completely_different-expected.txt";
+  const auto actual_path = test_res_dir / "testcase_completely_different-actual.txt";
+
+  std::ifstream expected_file{expected_path};
+  ASSERT_TRUE(expected_file) << "Failed to open file: " << expected_path;
+  std::ifstream actual_file{actual_path};
+  ASSERT_TRUE(actual_file) << "Failed to open file: " << actual_path;
+
+  std::vector<diff_line> diffs{};
+  const auto has_diff = diff_file_stdout(std::move(expected_file), std::move(actual_file),
+                                         [&diffs](const diff_line& line) { diffs.push_back(line); });
+  EXPECT_TRUE(has_diff);
+
+  const auto line_count{count_lines(diffs)};
+  EXPECT_EQ(1, line_count.context);
+  EXPECT_EQ(5, line_count.expected_only);
+  EXPECT_EQ(5, line_count.actual_only);
+}
+
+TEST(LazyDiffTest, EmptyFiles) {
+  const auto expected_path = test_res_dir / "testcase_empty-expected.txt";
+  const auto actual_path = test_res_dir / "testcase_empty-actual.txt";
+
+  std::ifstream expected_file{expected_path};
+  ASSERT_TRUE(expected_file) << "Failed to open file: " << expected_path;
+  std::ifstream actual_file{actual_path};
+  ASSERT_TRUE(actual_file) << "Failed to open file: " << actual_path;
+
+  std::vector<diff_line> diffs{};
+  const auto has_diff = diff_file_stdout(std::move(expected_file), std::move(actual_file),
+                                         [&diffs](const diff_line& line) { diffs.push_back(line); });
+  EXPECT_FALSE(has_diff);
+
+  const auto line_count{count_lines(diffs)};
+  EXPECT_EQ(0, line_count.context);
+  EXPECT_EQ(0, line_count.expected_only);
+  EXPECT_EQ(0, line_count.actual_only);
+}
 }  // namespace
