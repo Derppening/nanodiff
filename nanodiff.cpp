@@ -26,7 +26,7 @@ struct command_line_args {
   std::optional<std::string> expected{std::nullopt};
   std::optional<std::string> actual{std::nullopt};
   // TODO(Derppening): Add option for hiding expected/actual file paths
-  // TODO(Derppening): Add option for hiding context lines
+  // TODO(Derppening): Add option for showing/hiding all context lines
   // TODO(Derppening): Add option for custom exit code
   // TODO(Derppening): Add diff options supported by ZINC
   // TODO(Derppening): Add option for treating missing file as empty
@@ -136,6 +136,175 @@ auto normalize_path(const std::string& path_str) -> std::expected<std::filesyste
 namespace {
 #endif
 
+class file_differ {
+ public:
+  file_differ() = default;
+  file_differ(const file_differ&) = default;
+  file_differ(file_differ&&) noexcept = default;
+
+  virtual ~file_differ() = default;
+
+  auto operator=(const file_differ&) -> file_differ& = default;
+  auto operator=(file_differ&&) noexcept -> file_differ& = default;
+
+  virtual auto do_diff(const diff_line_cb& line_callback) -> bool {
+    bool has_diff{};
+
+    // `+`
+    std::vector<std::string> only_actual{};
+
+    auto output_diff = [&line_callback, &has_diff, &only_actual]() {
+      has_diff |= !only_actual.empty();
+
+      std::ranges::for_each(only_actual, [&line_callback](const auto& l) {
+        line_callback(diff_line{.line = l, .type = diff_line_type::actual_only});
+      });
+      only_actual.clear();
+    };
+
+    // !! Vector of strings containing all lines that are not present in the expected file up to a given point
+    std::vector<std::string> actual_buffer;
+
+    auto expected_line{read_expected_line()};
+    while (expected_line) {
+      auto matching_actual_it = std::ranges::find(actual_buffer, expected_line);
+      while (matching_actual_it == actual_buffer.end()) {
+        auto actual_line = read_actual_line();
+        if (!actual_line) {
+          break;
+        }
+
+        actual_buffer.push_back(std::move(*actual_line));
+
+        matching_actual_it = std::ranges::find(actual_buffer.end() - 1, actual_buffer.end(), expected_line);
+      }
+
+      if (matching_actual_it != actual_buffer.end()) {
+        // We found a matching line in the actual buffer
+        const auto nlines = std::distance(actual_buffer.begin(), matching_actual_it);
+
+        std::ranges::move(actual_buffer | std::views::take(nlines), std::back_inserter(only_actual));
+
+        output_diff();
+        if (has_diff) {
+          line_callback(diff_line{.line = *expected_line, .type = diff_line_type::context});
+        }
+
+        // Erase all lines up to and including the matching line from `actual_buffer`
+        actual_buffer.erase(actual_buffer.begin(), matching_actual_it + 1);
+      } else {
+        has_diff = true;
+        line_callback(diff_line{.line = *expected_line, .type = diff_line_type::expected_only});
+      }
+
+      expected_line = read_expected_line();
+    };
+
+    std::ranges::for_each(actual_buffer, [&line_callback](const auto& l) {
+      line_callback(diff_line{.line = l, .type = diff_line_type::actual_only});
+    });
+    actual_buffer.clear();
+
+    auto actual_line{read_actual_line()};
+    while (actual_line) {
+      line_callback(diff_line{.line = *actual_line, .type = diff_line_type::actual_only});
+
+      actual_line = read_actual_line();
+    }
+
+    return has_diff;
+  }
+
+ protected:
+  virtual auto read_expected_line() -> std::optional<std::string> = 0;
+  virtual auto read_actual_line() -> std::optional<std::string> = 0;
+};
+
+class eager_file_differ final : public file_differ {
+ public:
+  eager_file_differ(const eager_file_differ&) = delete;
+  eager_file_differ(eager_file_differ&&) noexcept = default;
+
+  ~eager_file_differ() override = default;
+
+  auto operator=(const eager_file_differ&) -> eager_file_differ& = delete;
+  auto operator=(eager_file_differ&&) noexcept -> eager_file_differ& = default;
+
+  eager_file_differ(std::ifstream expected, std::ifstream actual) {
+    while (expected) {
+      std::string line{};
+      std::getline(expected, line);
+      _expected_content.emplace_back(std::move(line));
+    }
+    _expected_it = _expected_content.cbegin();
+
+    while (actual) {
+      std::string line{};
+      std::getline(actual, line);
+      _actual_content.emplace_back(std::move(line));
+    }
+    _actual_it = _actual_content.cbegin();
+  }
+
+ private:
+  auto read_expected_line() -> std::optional<std::string> override {
+    if (_expected_it == _expected_content.cend()) {
+      return std::nullopt;
+    }
+    return std::make_optional(*_expected_it++);
+  }
+  auto read_actual_line() -> std::optional<std::string> override {
+    if (_actual_it == _actual_content.cend()) {
+      return std::nullopt;
+    }
+    return std::make_optional(*_actual_it++);
+  }
+
+  std::vector<std::string> _expected_content;
+  decltype(_expected_content)::const_iterator _expected_it;
+  std::vector<std::string> _actual_content;
+  decltype(_actual_content)::const_iterator _actual_it;
+};
+
+class lazy_file_differ final : public file_differ {
+ public:
+  lazy_file_differ(const lazy_file_differ&) = delete;
+  lazy_file_differ(lazy_file_differ&&) noexcept = default;
+
+  ~lazy_file_differ() override = default;
+
+  auto operator=(const lazy_file_differ&) -> lazy_file_differ& = delete;
+  auto operator=(lazy_file_differ&&) noexcept -> lazy_file_differ& = default;
+
+  lazy_file_differ(std::ifstream expected, std::ifstream actual) :
+      _expected{std::move(expected)}, _actual{std::move(actual)} {}
+
+ private:
+  auto read_expected_line() -> std::optional<std::string> override {
+    std::optional<std::string> line{};
+
+    if (_expected) {
+      line = std::string{};
+      std::getline(_expected, *line);
+    }
+
+    return line;
+  }
+  auto read_actual_line() -> std::optional<std::string> override {
+    std::optional<std::string> line{};
+
+    if (_actual) {
+      line = std::string{};
+      std::getline(_actual, *line);
+    }
+
+    return line;
+  }
+
+  std::ifstream _expected;
+  std::ifstream _actual;
+};
+
 /**
  * @brief Compares two files line by line and outputs the by the @code line_callback @endcode function.
  *
@@ -143,74 +312,9 @@ namespace {
  * and compares them line-by-line.
  */
 auto diff_file_stdout_eager(std::ifstream expected, std::ifstream actual, const diff_line_cb& line_callback) -> bool {
-  bool has_diff{};
+  eager_file_differ differ{std::move(expected), std::move(actual)};
 
-  std::vector<std::string> expected_content{};
-  std::vector<std::string> actual_content{};
-
-  while (expected) {
-    std::string line{};
-    std::getline(expected, line);
-    expected_content.emplace_back(std::move(line));
-  }
-  while (actual) {
-    std::string line{};
-    std::getline(actual, line);
-    actual_content.emplace_back(std::move(line));
-  }
-
-  // `+`
-  std::vector<std::string> only_actual{};
-
-  auto output_diff = [&line_callback, &has_diff, &only_actual]() {
-    has_diff |= !only_actual.empty();
-
-    std::ranges::for_each(only_actual, [&line_callback](const auto& l) {
-      line_callback(diff_line{.line = l, .type = diff_line_type::actual_only});
-    });
-    only_actual.clear();
-  };
-
-  auto actual_it = actual_content.begin();
-  for (auto expected_it = expected_content.begin();
-       expected_it != expected_content.end() && actual_it != actual_content.end();) {
-    if (const auto it = std::ranges::find(actual_content, *expected_it); it != actual_content.end()) {
-      const auto nlines = std::distance(actual_content.begin(), it);
-
-      std::ranges::move(actual_content | std::views::take(nlines), std::back_inserter(only_actual));
-
-      output_diff();
-      if (has_diff) {
-        line_callback(diff_line{.line = *it, .type = diff_line_type::context});
-      }
-
-      // Erase all lines up to and including the matching line from `actual_buffer`
-      actual_it = actual_content.erase(actual_content.begin(), it + 1);
-    } else {
-      has_diff = true;
-      line_callback(diff_line{.line = *expected_it, .type = diff_line_type::expected_only});
-    }
-
-    expected_it = expected_content.erase(expected_content.begin());
-  }
-
-  if (!expected_content.empty()) {
-    has_diff = true;
-    std::ranges::for_each(expected_content, [&line_callback](const auto& l) {
-      line_callback(diff_line{.line = l, .type = diff_line_type::actual_only});
-    });
-  }
-  expected_content.clear();
-
-  if (actual_it != actual_content.end()) {
-    has_diff = true;
-    std::ranges::for_each(actual_it, actual_content.end(), [&line_callback](const auto& l) {
-      line_callback(diff_line{.line = l, .type = diff_line_type::actual_only});
-    });
-  }
-  actual_content.clear();
-
-  return has_diff;
+  return differ.do_diff(line_callback);
 }
 
 /**
@@ -220,69 +324,9 @@ auto diff_file_stdout_eager(std::ifstream expected, std::ifstream actual, const 
  * looking ahead in the actual file and buffering lines until a match is found in the expected file.
  */
 auto diff_file_stdout(std::ifstream expected, std::ifstream actual, const diff_line_cb& line_callback) -> bool {
-  bool has_diff{};
+  lazy_file_differ differ{std::move(expected), std::move(actual)};
 
-  // `+`
-  std::vector<std::string> only_actual{};
-
-  auto output_diff = [&line_callback, &has_diff, &only_actual]() {
-    has_diff |= !only_actual.empty();
-
-    std::ranges::for_each(only_actual, [&line_callback](const auto& l) {
-      line_callback(diff_line{.line = l, .type = diff_line_type::actual_only});
-    });
-    only_actual.clear();
-  };
-
-  // !! Vector of strings containing all lines that are not present in the expected file up to a given point
-  std::vector<std::string> actual_buffer;
-
-  while (expected) {
-    std::string expected_line{};
-    std::getline(expected, expected_line);
-
-    auto matching_actual_it = std::ranges::find(actual_buffer, expected_line);
-    while (matching_actual_it == actual_buffer.end() && actual) {
-      std::string actual_line{};
-      std::getline(actual, actual_line);
-
-      actual_buffer.push_back(std::move(actual_line));
-
-      matching_actual_it = std::ranges::find(actual_buffer.end() - 1, actual_buffer.end(), expected_line);
-    }
-
-    if (matching_actual_it != actual_buffer.end()) {
-      // We found a matching line in the actual buffer
-      const auto nlines = std::distance(actual_buffer.begin(), matching_actual_it);
-
-      std::ranges::move(actual_buffer | std::views::take(nlines), std::back_inserter(only_actual));
-
-      output_diff();
-      if (has_diff) {
-        line_callback(diff_line{.line = expected_line, .type = diff_line_type::context});
-      }
-
-      // Erase all lines up to and including the matching line from `actual_buffer`
-      actual_buffer.erase(actual_buffer.begin(), matching_actual_it + 1);
-    } else {
-      has_diff = true;
-      line_callback(diff_line{.line = expected_line, .type = diff_line_type::expected_only});
-    }
-  }
-
-  std::ranges::for_each(actual_buffer, [&line_callback](const auto& l) {
-    line_callback(diff_line{.line = l, .type = diff_line_type::actual_only});
-  });
-  actual_buffer.clear();
-
-  while (actual) {
-    std::string line{};
-    std::getline(actual, line);
-
-    line_callback(diff_line{.line = line, .type = diff_line_type::actual_only});
-  }
-
-  return has_diff;
+  return differ.do_diff(line_callback);
 }
 
 #ifndef NANODIFF_TEST
