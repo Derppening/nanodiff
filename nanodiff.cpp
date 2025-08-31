@@ -268,7 +268,7 @@ auto diff_file_stdout(std::ifstream expected, std::ifstream actual, const diff_l
     }
   }
 
-  std::ranges::for_each(actual_buffer, [&line_callback](const auto l) {
+  std::ranges::for_each(actual_buffer, [&line_callback](const auto& l) {
     line_callback(diff_line{.line = l, .type = diff_line_type::actual_only});
   });
   actual_buffer.clear();
