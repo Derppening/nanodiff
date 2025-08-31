@@ -94,6 +94,26 @@ TEST(EagerDiffTest, LineAdded) {
   EXPECT_EQ(1, line_count.actual_only);
 }
 
+TEST(EagerDiffTest, LineRemoved) {
+  const auto expected_path = test_res_dir / "testcase_line_removed-expected.txt";
+  const auto actual_path = test_res_dir / "testcase_line_removed-actual.txt";
+
+  std::ifstream expected_file{expected_path};
+  ASSERT_TRUE(expected_file) << "Failed to open file: " << expected_path;
+  std::ifstream actual_file{actual_path};
+  ASSERT_TRUE(actual_file) << "Failed to open file: " << actual_path;
+
+  std::vector<diff_line> diffs{};
+  const auto has_diff = diff_file_stdout_eager(std::move(expected_file), std::move(actual_file),
+                                               [&diffs](const diff_line& line) { diffs.push_back(line); });
+  EXPECT_TRUE(has_diff);
+
+  const auto line_count{count_lines(diffs)};
+  EXPECT_EQ(4, line_count.context);
+  EXPECT_EQ(1, line_count.expected_only);
+  EXPECT_EQ(0, line_count.actual_only);
+}
+
 TEST(EagerDiffTest, CompletelyDifferent) {
   const auto expected_path = test_res_dir / "testcase_completely_different-expected.txt";
   const auto actual_path = test_res_dir / "testcase_completely_different-actual.txt";

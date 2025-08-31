@@ -187,6 +187,7 @@ auto diff_file_stdout_eager(std::ifstream expected, std::ifstream actual, const 
       // Erase all lines up to and including the matching line from `actual_buffer`
       actual_it = actual_content.erase(actual_content.begin(), it + 1);
     } else {
+      has_diff = true;
       line_callback(diff_line{.line = *expected_it, .type = diff_line_type::expected_only});
     }
 
@@ -247,7 +248,8 @@ auto diff_file_stdout(std::ifstream expected, std::ifstream actual, const diff_l
 
       actual_buffer.push_back(std::move(actual_line));
 
-      matching_actual_it = std::ranges::find(actual_buffer.end() - 1, actual_buffer.end(), expected_line);
+      // matching_actual_it = std::ranges::find(actual_buffer.end() - 1, actual_buffer.end(), expected_line);
+      matching_actual_it = std::ranges::find(actual_buffer, expected_line);
     }
 
     if (matching_actual_it != actual_buffer.end()) {
@@ -264,6 +266,7 @@ auto diff_file_stdout(std::ifstream expected, std::ifstream actual, const diff_l
       // Erase all lines up to and including the matching line from `actual_buffer`
       actual_buffer.erase(actual_buffer.begin(), matching_actual_it + 1);
     } else {
+      has_diff = true;
       line_callback(diff_line{.line = expected_line, .type = diff_line_type::expected_only});
     }
   }
