@@ -248,8 +248,7 @@ auto diff_file_stdout(std::ifstream expected, std::ifstream actual, const diff_l
 
       actual_buffer.push_back(std::move(actual_line));
 
-      // matching_actual_it = std::ranges::find(actual_buffer.end() - 1, actual_buffer.end(), expected_line);
-      matching_actual_it = std::ranges::find(actual_buffer, expected_line);
+      matching_actual_it = std::ranges::find(actual_buffer.end() - 1, actual_buffer.end(), expected_line);
     }
 
     if (matching_actual_it != actual_buffer.end()) {
