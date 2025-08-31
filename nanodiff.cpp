@@ -187,7 +187,7 @@ auto diff_file_stdout_eager(std::ifstream expected, std::ifstream actual, const 
       // Erase all lines up to and including the matching line from `actual_buffer`
       actual_it = actual_content.erase(actual_content.begin(), it + 1);
     } else {
-      line_callback(diff_line{.line = *it, .type = diff_line_type::expected_only});
+      line_callback(diff_line{.line = *expected_it, .type = diff_line_type::expected_only});
     }
 
     expected_it = expected_content.erase(expected_content.begin());
