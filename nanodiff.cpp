@@ -242,7 +242,7 @@ auto diff_file_stdout(std::ifstream expected, std::ifstream actual, const diff_l
     std::getline(expected, expected_line);
 
     auto matching_actual_it = std::ranges::find(actual_buffer, expected_line);
-    while (matching_actual_it == actual_buffer.end()) {
+    while (matching_actual_it == actual_buffer.end() && actual) {
       std::string actual_line{};
       std::getline(actual, actual_line);
 
