@@ -372,10 +372,14 @@ auto main(int argc, char** argv) -> int {
     return EXIT_FAILURE;
   }
 
-  bool has_diff = diff_file_stdout_eager(std::move(expected), std::move(actual), [](const auto& diff_line) {
+  bool has_diff = diff_file_stdout(std::move(expected), std::move(actual), [](const auto& diff_line) {
     char prefix = ' ';
     switch (diff_line.type) {
       case diff_line_type::context:
+        if (diff_line.line.empty()) {
+          std::print("\n");
+          return;
+        }
         prefix = ' ';
         break;
       case diff_line_type::expected_only:
