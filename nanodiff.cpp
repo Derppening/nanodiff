@@ -311,6 +311,7 @@ class lazy_file_differ final : public file_differ {
  * This is the reference implementation of the diff algorithm, which eagerly reads both files into memory
  * and compares them line-by-line.
  */
+[[maybe_unused]]
 auto diff_file_stdout_eager(std::ifstream expected, std::ifstream actual, const diff_line_cb& line_callback) -> bool {
   eager_file_differ differ{std::move(expected), std::move(actual)};
 
