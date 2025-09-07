@@ -343,6 +343,137 @@ std::optional<std::filesystem::path> PorcelainStdoutTest::_exec_path{};
 std::filesystem::path PorcelainStdoutTest::stdout_path{};
 std::filesystem::path PorcelainStdoutTest::stderr_path{};
 
+TEST_F(PorcelainStdoutTest, SameOutput) {
+  std::filesystem::path exec_path{};
+  PorcelainStdoutTest::exec_path(exec_path);
+
+  const auto expected_path = test_res_dir / "testcase_same_output-expected.txt";
+  const auto actual_path = test_res_dir / "testcase_same_output-actual.txt";
+
+  const auto cmd = std::format("{} -- {} {} >{} 2>{}", std::string{exec_path}, std::string{expected_path},
+                               std::string{actual_path}, std::string{stdout_path}, std::string{stderr_path});
+  const auto exit_code = std::system(cmd.c_str());
+  EXPECT_EQ(exit_code, 0);
+
+  std::string stdout{};
+  read_to_string(stdout_path, stdout);
+  EXPECT_EQ(std::string_view{stdout}, R"()"sv);
+
+  std::string stderr{};
+  read_to_string(stderr_path, stdout);
+  EXPECT_EQ(std::string_view{stderr}, R"()"sv);
+}
+
+TEST_F(PorcelainStdoutTest, OneLineChanged) {
+  std::filesystem::path exec_path{};
+  PorcelainStdoutTest::exec_path(exec_path);
+
+  const auto expected_path = test_res_dir / "testcase_one_line_changed-expected.txt";
+  const auto actual_path = test_res_dir / "testcase_one_line_changed-actual.txt";
+
+  const auto cmd = std::format("{} -- {} {} >{} 2>{}", std::string{exec_path}, std::string{expected_path},
+                               std::string{actual_path}, std::string{stdout_path}, std::string{stderr_path});
+  const auto exit_code = std::system(cmd.c_str());
+  EXPECT_NE(exit_code, 0);
+
+  std::string stdout{};
+  read_to_string(stdout_path, stdout);
+  EXPECT_EQ(std::string_view{stdout}, R"(-3
++X
+ 4
+ 5
+
+)"sv);
+
+  std::string stderr{};
+  read_to_string(stderr_path, stdout);
+  EXPECT_EQ(std::string_view{stderr}, R"()"sv);
+}
+
+TEST_F(PorcelainStdoutTest, LineAdded) {
+  std::filesystem::path exec_path{};
+  PorcelainStdoutTest::exec_path(exec_path);
+
+  const auto expected_path = test_res_dir / "testcase_line_added-expected.txt";
+  const auto actual_path = test_res_dir / "testcase_line_added-actual.txt";
+
+  const auto cmd = std::format("{} -- {} {} >{} 2>{}", std::string{exec_path}, std::string{expected_path},
+                               std::string{actual_path}, std::string{stdout_path}, std::string{stderr_path});
+  const auto exit_code = std::system(cmd.c_str());
+  EXPECT_NE(exit_code, 0);
+
+  std::string stdout{};
+  read_to_string(stdout_path, stdout);
+  EXPECT_EQ(std::string_view{stdout}, R"(+extra line
+ 4
+ 5
+ 6
+
+)"sv);
+
+  std::string stderr{};
+  read_to_string(stderr_path, stdout);
+  EXPECT_EQ(std::string_view{stderr}, R"()"sv);
+}
+
+TEST_F(PorcelainStdoutTest, LineRemoved) {
+  std::filesystem::path exec_path{};
+  PorcelainStdoutTest::exec_path(exec_path);
+
+  const auto expected_path = test_res_dir / "testcase_line_removed-expected.txt";
+  const auto actual_path = test_res_dir / "testcase_line_removed-actual.txt";
+
+  const auto cmd = std::format("{} -- {} {} >{} 2>{}", std::string{exec_path}, std::string{expected_path},
+                               std::string{actual_path}, std::string{stdout_path}, std::string{stderr_path});
+  const auto exit_code = std::system(cmd.c_str());
+  EXPECT_NE(exit_code, 0);
+
+  std::string stdout{};
+  read_to_string(stdout_path, stdout);
+  EXPECT_EQ(std::string_view{stdout}, R"(-extra line
+ 4
+ 5
+ 6
+
+)"sv);
+
+  std::string stderr{};
+  read_to_string(stderr_path, stdout);
+  EXPECT_EQ(std::string_view{stderr}, R"()"sv);
+}
+
+TEST_F(PorcelainStdoutTest, CompletelyDifferent) {
+  std::filesystem::path exec_path{};
+  PorcelainStdoutTest::exec_path(exec_path);
+
+  const auto expected_path = test_res_dir / "testcase_completely_different-expected.txt";
+  const auto actual_path = test_res_dir / "testcase_completely_different-actual.txt";
+
+  const auto cmd = std::format("{} -- {} {} >{} 2>{}", std::string{exec_path}, std::string{expected_path},
+                               std::string{actual_path}, std::string{stdout_path}, std::string{stderr_path});
+  const auto exit_code = std::system(cmd.c_str());
+  EXPECT_NE(exit_code, 0);
+
+  std::string stdout{};
+  read_to_string(stdout_path, stdout);
+  EXPECT_EQ(std::string_view{stdout}, R"(-A
+-B
+-C
+-D
+-E
++Apple
++Banana
++Carrot
++Dog
++Eggplant
+
+)"sv);
+
+  std::string stderr{};
+  read_to_string(stderr_path, stdout);
+  EXPECT_EQ(std::string_view{stderr}, R"()"sv);
+}
+
 TEST_F(PorcelainStdoutTest, EmptyFiles) {
   std::filesystem::path exec_path{};
   PorcelainStdoutTest::exec_path(exec_path);
