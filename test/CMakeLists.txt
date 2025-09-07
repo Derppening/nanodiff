@@ -15,6 +15,7 @@ foreach (TEST_RESOURCE ${TEST_RESOURCES})
 endforeach ()
 
 add_executable(${PROJECT_NAME}-test ../nanodiff.cpp nanodiff-test.cpp)
+add_dependencies(${PROJECT_NAME}-test ${PROJECT_NAME})
 target_compile_definitions(${PROJECT_NAME}-test PRIVATE NANODIFF_TEST)
 target_compile_features(${PROJECT_NAME}-test PRIVATE cxx_std_23)
 target_compile_options(${PROJECT_NAME}-test PRIVATE

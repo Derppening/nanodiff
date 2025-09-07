@@ -342,7 +342,7 @@ auto main(int argc, char** argv) -> int {
   if (!cmd_args_or_err) {
     auto err = cmd_args_or_err.error();
     std::print("Error while parsing command-line arguments: {}\n", err);
-    return 1;
+    return EXIT_FAILURE;
   }
 
   const auto& cmd_args = *cmd_args_or_err;

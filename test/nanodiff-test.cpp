@@ -1,14 +1,22 @@
+#include <cstdlib>
 #include <algorithm>
 #include <filesystem>
+#include <format>
 #include <fstream>
+#include <optional>
+#include <string_view>
 #include <vector>
 
 #include <gtest/gtest.h>
 
 #include "../nanodiff.h"
 
+using std::literals::operator""sv;
+
 namespace {
 const std::filesystem::path test_res_dir{"test_resources"};
+const std::string_view stdout_tmpfile_name{".nanodiff-test.stdout"sv};
+const std::string_view stderr_tmpfile_name{".nanodiff-test.stderr"sv};
 
 struct line_count {
   std::size_t context = 0;
@@ -266,4 +274,95 @@ TEST(LazyDiffTest, EmptyFiles) {
   EXPECT_EQ(0, line_count.expected_only);
   EXPECT_EQ(0, line_count.actual_only);
 }
+
+#if defined(__linux__)
+
+class PorcelainStdoutTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    remove_tmpfile_if_exists(stdout_path);
+    remove_tmpfile_if_exists(stderr_path);
+  }
+
+  void TearDown() override {
+    remove_tmpfile_if_exists(stdout_path);
+    remove_tmpfile_if_exists(stderr_path);
+  }
+
+  static void SetUpTestSuite() {
+    const auto exec_path{std::filesystem::absolute(std::filesystem::current_path() / ".." / "nanodiff")};
+
+    _exec_path = std::filesystem::is_regular_file(exec_path) ? std::make_optional(exec_path) : std::nullopt;
+
+    const auto tmp_path{std::filesystem::temp_directory_path()};
+    stdout_path = std::filesystem::absolute(tmp_path / stdout_tmpfile_name);
+    stderr_path = std::filesystem::absolute(tmp_path / stderr_tmpfile_name);
+
+    remove_tmpfile_if_exists(stdout_path);
+    remove_tmpfile_if_exists(stderr_path);
+  }
+
+  static void exec_path(std::filesystem::path& exec_path) {
+    if (!_exec_path) {
+      GTEST_SKIP() << "Test requires `nanodiff` executable to be compiled";
+    }
+    exec_path = *_exec_path;
+  }
+
+  static void read_to_string(const std::filesystem::path& path, std::string& str) {
+    if (!std::filesystem::exists(path)) {
+      str.clear();
+      return;
+    }
+
+    const auto size = std::filesystem::file_size(path);
+    str.resize(size);
+
+    std::ifstream ifs{path};
+    ASSERT_TRUE(ifs) << "Unable to open " << path << " for reading";
+
+    ifs.read(str.data(), static_cast<std::streamsize>(size));
+  }
+
+  static std::filesystem::path stdout_path;
+  static std::filesystem::path stderr_path;
+
+ private:
+  static void remove_tmpfile_if_exists(const std::filesystem::path& path) {
+    if (std::filesystem::exists(path)) {
+      ASSERT_TRUE(std::filesystem::is_regular_file(path))
+          << path << "already exists as a directory and needs to be removed manually";
+      ASSERT_TRUE(std::filesystem::remove(path)) << "Failed to remove stdout temporary file " << path;
+    }
+  }
+
+  static std::optional<std::filesystem::path> _exec_path;
+};
+
+std::optional<std::filesystem::path> PorcelainStdoutTest::_exec_path{};
+std::filesystem::path PorcelainStdoutTest::stdout_path{};
+std::filesystem::path PorcelainStdoutTest::stderr_path{};
+
+TEST_F(PorcelainStdoutTest, EmptyFiles) {
+  std::filesystem::path exec_path{};
+  PorcelainStdoutTest::exec_path(exec_path);
+
+  const auto expected_path = test_res_dir / "testcase_empty-expected.txt";
+  const auto actual_path = test_res_dir / "testcase_empty-actual.txt";
+
+  const auto cmd = std::format("{} -- {} {} >{} 2>{}", std::string{exec_path}, std::string{expected_path},
+                               std::string{actual_path}, std::string{stdout_path}, std::string{stderr_path});
+  const auto exit_code = std::system(cmd.c_str());
+  EXPECT_EQ(exit_code, 0);
+
+  std::string stdout{};
+  read_to_string(stdout_path, stdout);
+  EXPECT_EQ(std::string_view{stdout}, R"()"sv);
+
+  std::string stderr{};
+  read_to_string(stderr_path, stdout);
+  EXPECT_EQ(std::string_view{stderr}, R"()"sv);
+}
+
+#endif  // defined(__linux__)
 }  // namespace
