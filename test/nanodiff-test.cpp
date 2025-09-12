@@ -277,12 +277,43 @@ TEST(LazyDiffTest, EmptyFiles) {
 
 #if defined(__linux__)
 
+struct exec_output {
+  int exit_code;
+  std::string stdout;
+  std::string stderr;
+};
+
 class PorcelainStdoutTest : public testing::Test {
  protected:
   void SetUp() override {
     remove_tmpfile_if_exists(stdout_path);
     remove_tmpfile_if_exists(stderr_path);
   }
+
+  // NOLINTBEGIN(concurrency-mt-unsafe)
+  static auto run_cmd(const std::filesystem::path& expected_path,
+                      const std::filesystem::path& actual_path,
+                      const std::string_view args = ""sv) -> exec_output {
+    std::filesystem::path exec_path{};
+    PorcelainStdoutTest::exec_path(exec_path);
+
+    const auto cmd = std::format("{} {} -- {} {} >{} 2>{}", std::string{exec_path}, args, std::string{expected_path},
+                                 std::string{actual_path}, std::string{stdout_path}, std::string{stderr_path});
+    const auto exit_code = std::system(cmd.c_str());
+
+    std::string stdout{};
+    read_to_string(stdout_path, stdout);
+
+    std::string stderr{};
+    read_to_string(stderr_path, stderr);
+
+    return exec_output{
+        .exit_code = exit_code,
+        .stdout = std::move(stdout),
+        .stderr = std::move(stderr),
+    };
+  }
+  // NOLINTEND(concurrency-mt-unsafe)
 
   void TearDown() override {
     remove_tmpfile_if_exists(stdout_path);
@@ -344,119 +375,72 @@ std::filesystem::path PorcelainStdoutTest::stdout_path{};
 std::filesystem::path PorcelainStdoutTest::stderr_path{};
 
 TEST_F(PorcelainStdoutTest, SameOutput) {
-  std::filesystem::path exec_path{};
-  PorcelainStdoutTest::exec_path(exec_path);
-
   const auto expected_path = test_res_dir / "testcase_same_output-expected.txt";
   const auto actual_path = test_res_dir / "testcase_same_output-actual.txt";
 
-  const auto cmd = std::format("{} -- {} {} >{} 2>{}", std::string{exec_path}, std::string{expected_path},
-                               std::string{actual_path}, std::string{stdout_path}, std::string{stderr_path});
-  const auto exit_code = std::system(cmd.c_str());
-  EXPECT_EQ(exit_code, 0);
+  const auto exec_result = PorcelainStdoutTest::run_cmd(expected_path, actual_path);
+  EXPECT_EQ(exec_result.exit_code, 0);
 
-  std::string stdout{};
-  read_to_string(stdout_path, stdout);
-  EXPECT_EQ(std::string_view{stdout}, R"()"sv);
-
-  std::string stderr{};
-  read_to_string(stderr_path, stdout);
-  EXPECT_EQ(std::string_view{stderr}, R"()"sv);
+  EXPECT_EQ(exec_result.stdout, R"()"sv);
+  EXPECT_EQ(exec_result.stderr, R"()"sv);
 }
 
 TEST_F(PorcelainStdoutTest, OneLineChanged) {
-  std::filesystem::path exec_path{};
-  PorcelainStdoutTest::exec_path(exec_path);
-
   const auto expected_path = test_res_dir / "testcase_one_line_changed-expected.txt";
   const auto actual_path = test_res_dir / "testcase_one_line_changed-actual.txt";
 
-  const auto cmd = std::format("{} -- {} {} >{} 2>{}", std::string{exec_path}, std::string{expected_path},
-                               std::string{actual_path}, std::string{stdout_path}, std::string{stderr_path});
-  const auto exit_code = std::system(cmd.c_str());
-  EXPECT_NE(exit_code, 0);
+  const auto exec_result = PorcelainStdoutTest::run_cmd(expected_path, actual_path);
+  EXPECT_NE(exec_result.exit_code, 0);
 
-  std::string stdout{};
-  read_to_string(stdout_path, stdout);
-  EXPECT_EQ(std::string_view{stdout}, R"(-3
+  EXPECT_EQ(exec_result.stdout, R"(-3
 +X
  4
  5
 
 )"sv);
-
-  std::string stderr{};
-  read_to_string(stderr_path, stdout);
-  EXPECT_EQ(std::string_view{stderr}, R"()"sv);
+  EXPECT_EQ(exec_result.stderr, R"()"sv);
 }
 
 TEST_F(PorcelainStdoutTest, LineAdded) {
-  std::filesystem::path exec_path{};
-  PorcelainStdoutTest::exec_path(exec_path);
-
   const auto expected_path = test_res_dir / "testcase_line_added-expected.txt";
   const auto actual_path = test_res_dir / "testcase_line_added-actual.txt";
 
-  const auto cmd = std::format("{} -- {} {} >{} 2>{}", std::string{exec_path}, std::string{expected_path},
-                               std::string{actual_path}, std::string{stdout_path}, std::string{stderr_path});
-  const auto exit_code = std::system(cmd.c_str());
-  EXPECT_NE(exit_code, 0);
+  const auto exec_result = PorcelainStdoutTest::run_cmd(expected_path, actual_path);
+  EXPECT_NE(exec_result.exit_code, 0);
 
-  std::string stdout{};
-  read_to_string(stdout_path, stdout);
-  EXPECT_EQ(std::string_view{stdout}, R"(+extra line
+  EXPECT_EQ(exec_result.stdout, R"(+extra line
  4
  5
  6
 
 )"sv);
-
-  std::string stderr{};
-  read_to_string(stderr_path, stdout);
-  EXPECT_EQ(std::string_view{stderr}, R"()"sv);
+  EXPECT_EQ(exec_result.stderr, R"()"sv);
 }
 
 TEST_F(PorcelainStdoutTest, LineRemoved) {
-  std::filesystem::path exec_path{};
-  PorcelainStdoutTest::exec_path(exec_path);
-
   const auto expected_path = test_res_dir / "testcase_line_removed-expected.txt";
   const auto actual_path = test_res_dir / "testcase_line_removed-actual.txt";
 
-  const auto cmd = std::format("{} -- {} {} >{} 2>{}", std::string{exec_path}, std::string{expected_path},
-                               std::string{actual_path}, std::string{stdout_path}, std::string{stderr_path});
-  const auto exit_code = std::system(cmd.c_str());
-  EXPECT_NE(exit_code, 0);
+  const auto exec_result = PorcelainStdoutTest::run_cmd(expected_path, actual_path);
+  EXPECT_NE(exec_result.exit_code, 0);
 
-  std::string stdout{};
-  read_to_string(stdout_path, stdout);
-  EXPECT_EQ(std::string_view{stdout}, R"(-extra line
+  EXPECT_EQ(exec_result.stdout, R"(-extra line
  4
  5
  6
 
 )"sv);
-
-  std::string stderr{};
-  read_to_string(stderr_path, stdout);
-  EXPECT_EQ(std::string_view{stderr}, R"()"sv);
+  EXPECT_EQ(exec_result.stderr, R"()"sv);
 }
 
 TEST_F(PorcelainStdoutTest, CompletelyDifferent) {
-  std::filesystem::path exec_path{};
-  PorcelainStdoutTest::exec_path(exec_path);
-
   const auto expected_path = test_res_dir / "testcase_completely_different-expected.txt";
   const auto actual_path = test_res_dir / "testcase_completely_different-actual.txt";
 
-  const auto cmd = std::format("{} -- {} {} >{} 2>{}", std::string{exec_path}, std::string{expected_path},
-                               std::string{actual_path}, std::string{stdout_path}, std::string{stderr_path});
-  const auto exit_code = std::system(cmd.c_str());
-  EXPECT_NE(exit_code, 0);
+  const auto exec_result = PorcelainStdoutTest::run_cmd(expected_path, actual_path);
+  EXPECT_NE(exec_result.exit_code, 0);
 
-  std::string stdout{};
-  read_to_string(stdout_path, stdout);
-  EXPECT_EQ(std::string_view{stdout}, R"(-A
+  EXPECT_EQ(exec_result.stdout, R"(-A
 -B
 -C
 -D
@@ -468,31 +452,18 @@ TEST_F(PorcelainStdoutTest, CompletelyDifferent) {
 +Eggplant
 
 )"sv);
-
-  std::string stderr{};
-  read_to_string(stderr_path, stdout);
-  EXPECT_EQ(std::string_view{stderr}, R"()"sv);
+  EXPECT_EQ(exec_result.stderr, R"()"sv);
 }
 
 TEST_F(PorcelainStdoutTest, EmptyFiles) {
-  std::filesystem::path exec_path{};
-  PorcelainStdoutTest::exec_path(exec_path);
-
   const auto expected_path = test_res_dir / "testcase_empty-expected.txt";
   const auto actual_path = test_res_dir / "testcase_empty-actual.txt";
 
-  const auto cmd = std::format("{} -- {} {} >{} 2>{}", std::string{exec_path}, std::string{expected_path},
-                               std::string{actual_path}, std::string{stdout_path}, std::string{stderr_path});
-  const auto exit_code = std::system(cmd.c_str());
-  EXPECT_EQ(exit_code, 0);
+  const auto exec_result = PorcelainStdoutTest::run_cmd(expected_path, actual_path);
+  EXPECT_EQ(exec_result.exit_code, 0);
 
-  std::string stdout{};
-  read_to_string(stdout_path, stdout);
-  EXPECT_EQ(std::string_view{stdout}, R"()"sv);
-
-  std::string stderr{};
-  read_to_string(stderr_path, stdout);
-  EXPECT_EQ(std::string_view{stderr}, R"()"sv);
+  EXPECT_EQ(exec_result.stdout, R"()"sv);
+  EXPECT_EQ(exec_result.stderr, R"()"sv);
 }
 
 #endif  // defined(__linux__)
