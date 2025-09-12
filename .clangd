@@ -3,6 +3,7 @@ Diagnostics:
         Add: '*'
         Remove:
             - abseil-*
+            - altera-*
             - android-*
             - boost-*
             - cert-*
