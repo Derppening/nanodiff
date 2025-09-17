@@ -27,7 +27,7 @@ struct command_line_args {
   std::optional<std::string> actual{std::nullopt};
   // TODO(Derppening): Add option for hiding expected/actual file paths
   // TODO(Derppening): Add option for showing/hiding all context lines
-  // TODO(Derppening): Add option for custom exit code
+  int exit_code{EXIT_FAILURE};
   // TODO(Derppening): Add diff options supported by ZINC
   // TODO(Derppening): Add option for treating missing file as empty
 };
@@ -78,12 +78,31 @@ auto validate_args(const command_line_args& args) -> arg_parse_result;
  */
 auto normalize_path(const std::string& path_str) -> std::expected<std::filesystem::path, std::string>;
 
+auto parse_ec(const std::optional<std::string>& exit_code_opt) -> std::expected<int, std::string> {
+  if (!exit_code_opt) {
+    return std::unexpected{"Missing argument for --exit-code"};
+  }
+
+  int exit_code = -1;
+  try {
+    exit_code = std::stoi(*exit_code_opt);
+  } catch (const std::exception& e) {
+    return std::unexpected{std::format("Invalid argument for --exit-code: {}", e.what())};
+  }
+
+  if (exit_code < 0) {
+    return std::unexpected{"Exit code must be between a non-negative integer"};
+  }
+
+  return exit_code;
+}
+
 auto parse_cmdline(const std::vector<std::string>& args) -> arg_parse_result {
   command_line_args cmd_args{};
 
   bool parse_options = true;
 
-  for (auto it = args.begin(); it != args.end(); ++it) {
+  for (auto it = args.cbegin(); it != args.cend(); ++it) {
     // "--" delimits between options and filenames
     if (*it == "--") {
       parse_options = false;
@@ -92,6 +111,25 @@ auto parse_cmdline(const std::vector<std::string>& args) -> arg_parse_result {
 
     if (parse_options) {
       // no options yet
+      if (*it == "--exit-code") {
+        ++it;
+
+        std::optional<std::string> exit_code;
+        if (it == args.cend()) {
+          exit_code = std::nullopt;
+        } else {
+          exit_code = std::make_optional(*it);
+        }
+
+        const auto ec_or_err = parse_ec(exit_code);
+        if (!ec_or_err) {
+          return std::unexpected{ec_or_err.error()};
+        }
+
+        cmd_args.exit_code = *ec_or_err;
+      } else if (it->starts_with('-')) {
+        return std::unexpected{std::format("Unknown option: {}", *it)};
+      }
     } else {
       if (!cmd_args.expected) {
         cmd_args.expected = std::make_optional(*it);
@@ -396,7 +434,7 @@ auto main(int argc, char** argv) -> int {
   });
 
   if (has_diff) {
-    return EXIT_FAILURE;
+    return cmd_args.exit_code;
   }
 }
 
